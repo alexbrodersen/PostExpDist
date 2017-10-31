@@ -3,22 +3,23 @@
 ### Code to set up the posterior dstribution
 ###
 ################################################################################
-
+rm(list=ls())
 library(lpSolve)
 library(Rcpp)
-setwd("~/Documents/Projects/PosteriorExposureDistribution/")
+setwd("~/Documents/Projects/PostExpDist/")
+
 sourceCpp("FisherInfo.cpp")
 sourceCpp("Probs3plm.cpp")
 sourceCpp("MLScoring.cpp")
 
-nItems <- 540
+nItems <- 2000
 nForms <- 5
 nMidpoints <- 10
+mLength <- 40
+mLength/nItems
+1/(nForms*nMidpoints)
 
-mLength <- 30
-15/(nForms*nMidpoints)
-
-10/(nForms*nMidpoints)
+40/(nForms*nMidpoints)
 a <- rlnorm(nItems,0,.2)
 b <- rnorm(nItems)
 c <- rep(0,nItems)
@@ -110,7 +111,7 @@ x <- NULL
 for(i in 1:nMidpoints){
 x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),1))
 }
-
+length(x)
 makeLengthConOne <- function(nItems,nForms,nMidpoints){
     mat <- matrix(0,nrow = nMidpoints, ncol = nItems*nMidpoints)
     for(i in 1:(nMidpoints)){
@@ -143,20 +144,23 @@ makeItemLimitsTwo <- function(nItems,nForms){
     }
     return(mat)
 }
-
-
+gc()
+rm(f.con)
+rm(out)
+rm(out2)
 out <- makeItemLimitsOne(nItems,nForms,nMidpoints)
 out2 <- makeLengthConOne(nItems,nForms,nMidpoints)
 
 f.obj <- x
 f.con <- rbind(out2,out,out)
-f.rhs <- c(rep(mLength*nForms,nMidpoints),rep(3,nItems),rep(1,nItems))
+f.rhs <- c(rep(mLength*nForms,nMidpoints),rep(40,nItems),rep(30,nItems))
 f.dir <- c(rep("=",nMidpoints),rep("<=",nItems),rep(">=",nItems))
 dim(f.con)
 length(f.obj)
 length(f.dir)
 length(f.rhs)
 res <- lp("max",f.obj,f.con,f.dir,f.rhs,all.int = TRUE)
+res
 length(res$solution)/nItems
 result$solution
 i <- 1
@@ -178,6 +182,7 @@ DivideRes <- function(res,nMidpoints,nItems,nForms,mLength){
     }
     
     for(i in 1:nMidpoints){
+        cat(i/nMidpoints*100,"%\n")
         f.rhs <- c(rep(mLength,nForms),
                    res$solution[(1 + (i-1)*nItems):(nItems + (i-1)*nItems)])
         f.obj <- rep(res$objective[(1 + (i-1)*nItems):(nItems + (i-1)*nItems)],nForms)
@@ -290,9 +295,10 @@ CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method){
     return(list(theta.out = theta.out,I = I, U = U))
 }
 
-n <- 1000
+n <- 5000
 val <- -2
 thetas <- rep(val,n)
+thetas <- rnorm(n)
 res1 <- CatSim(thetas,a,b,c,mLength,edges,nForms,rrr,method = "MaxInfo")
 res2 <- CatSim(thetas,a,b,c,mLength,edges,nForms,rrr,method = "PostPool")
 
@@ -313,8 +319,9 @@ dev.off()
 mean(res2$theta.out[,mLength] - thetas)
 length(names(table(res2$I)))
 max(table(res2$I)/n)
+min(table(res2$I)/n)
 hist(res2$theta.out[,mLength])
-sqrt(mean((res2$theta.out[,mLength] - thetas)^2))
+sqrt(mean((res2$theta.out[,mLength] - thetas[])^2))
 
 rnorm(10)
 for(i in 1:5000){
@@ -335,7 +342,7 @@ for(i in 1:5000){
 library(gurobi)
 model <- list()
 ?gurobi
-f.rhs <- c(rep(mLength,nForms*nMidpoints),rep(50,nItems),rep(25,nItems))
+f.rhs <- c(rep(mLength,nForms*nMidpoints),rep(,nItems),rep(25,nItems))
 model$A          <- f.con
 model$obj        <- f.obj
 model$modelsense <- "max"
