@@ -3,6 +3,7 @@
 ### Code to set up the posterior dstribution
 ###
 ################################################################################
+
 rm(list=ls())
 library(lpSolve)
 library(Rcpp)
@@ -14,12 +15,17 @@ sourceCpp("MLScoring.cpp")
 
 nItems <- 2000
 nForms <- 5
-nMidpoints <- 10
+nMidpoints <- 20
 mLength <- 40
-mLength/nItems
-1/(nForms*nMidpoints)
 
-40/(nForms*nMidpoints)
+mLength/nItems
+
+1/(nForms*nMidpoints)
+kl <- 1
+ku <- 2
+kl/(nForms*nMidpoints)
+ku/(nForms*nMidpoints)
+
 a <- rlnorm(nItems,0,.2)
 b <- rnorm(nItems)
 c <- rep(0,nItems)
@@ -38,8 +44,8 @@ CalcMidpoints <- function(points,lb,ub){
     return(y)
 }
 
-midPoints <- CalcMidpoints(edges,lb,ub)
-
+Midpoints <- CalcMidpoints(edges,lb,ub)
+TRUE
 x <- NULL
 for(i in 1:nMidpoints){
 x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),nForms))
@@ -83,7 +89,7 @@ table(unlist(rrr))
 
 
 
-trimSolution <- function(res,nItems,nForms,nMidpoints){
+trimSolution <- function(res,nItems,nForms,nMidpoints,trace = F){
     testList <- list()
 
     for(i in 1:nMidpoints){
@@ -92,8 +98,8 @@ trimSolution <- function(res,nItems,nForms,nMidpoints){
 
     for(i in 1:nMidpoints){
         for(j in 1:nForms){
+            if(trace == T) cat(counter / nForms*nMidpoints)
             counter <- j + nForms*(i - 1)
-            print(counter)
             testList[[i]][[j]] <- which(res$solution[(1 + (counter - 1)*nItems):(counter*nItems)] == 1)
         }
     }
@@ -108,6 +114,7 @@ trimSolution <- function(res,nItems,nForms,nMidpoints){
 ################################################################################
 
 x <- NULL
+
 for(i in 1:nMidpoints){
 x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),1))
 }
@@ -144,36 +151,6 @@ makeItemLimitsTwo <- function(nItems,nForms){
     }
     return(mat)
 }
-gc()
-rm(f.con)
-rm(out)
-rm(out2)
-out <- makeItemLimitsOne(nItems,nForms,nMidpoints)
-out2 <- makeLengthConOne(nItems,nForms,nMidpoints)
-
-f.obj <- x
-f.con <- rbind(out2,out,out)
-f.rhs <- c(rep(mLength*nForms,nMidpoints),rep(40,nItems),rep(30,nItems))
-f.dir <- c(rep("=",nMidpoints),rep("<=",nItems),rep(">=",nItems))
-dim(f.con)
-length(f.obj)
-length(f.dir)
-length(f.rhs)
-res <- lp("max",f.obj,f.con,f.dir,f.rhs,all.int = TRUE)
-res
-length(res$solution)/nItems
-result$solution
-i <- 1
-res$constraints
-out <- DivideRes(res,nMidpoints,nItems,nForms,mLength)
-rrr <- trimSolution(result,nItems,nForms,nMidpoints)
-unlist(lapply(rrr,function(x) lapply(x,function(z){
-    sum(FisherInfo(0,a[z],b[z],c[z]))
-    })))
-sort(unlist(out[[1]])) == sort(unlist(rrr[[1]]))
-unlist(lapply(out,function(x) lapply(x,function(z){
-    sum(FisherInfo(0,a[z],b[z],c[z]))
-    })))
 
 DivideRes <- function(res,nMidpoints,nItems,nForms,mLength){
     testList <- NULL
@@ -200,6 +177,130 @@ DivideRes <- function(res,nMidpoints,nItems,nForms,mLength){
     return(testList)
         
 }
+
+gc()
+rm(f.con)
+rm(out)
+rm(out2)
+out <- makeItemLimitsOne(nItems,nForms,nMidpoints)
+out2 <- makeLengthConOne(nItems,nForms,nMidpoints)
+
+f.obj <- x
+f.con <- rbind(out2,out,out)
+f.rhs <- c(rep(mLength*nForms,nMidpoints),rep(ku,nItems),rep(kl,nItems))
+f.dir <- c(rep("=",nMidpoints),rep("<=",nItems),rep(">=",nItems))
+dim(f.con)
+length(f.obj)
+length(f.dir)
+length(f.rhs)
+res <- lp("max",f.obj,f.con,f.dir,f.rhs,all.int = TRUE)
+res
+length(res$solution)/nItems
+result$solution
+i <- 1
+res$constraints
+out <- DivideRes(res,nMidpoints,nItems,nForms,mLength)
+rrr <- trimSolution(result,nItems,nForms,nMidpoints)
+unlist(lapply(rrr,function(x) lapply(x,function(z){
+    sum(FisherInfo(0,a[z],b[z],c[z]))
+    })))
+sort(unlist(out[[1]])) == sort(unlist(rrr[[1]]))
+unlist(lapply(out,function(x) lapply(x,function(z){
+    sum(FisherInfo(0,a[z],b[z],c[z]))
+    })))
+################################################################################
+###
+### Bigger Shadow Test Method
+###
+################################################################################
+
+## The basic idea with the bigger shadow test method is to first partition
+## the ability range into a set of windows that are combinations of the smaller
+## individual windows. Then, we solve the optimization problems for the larger
+## windows. Then, we solve the optimization problem for each (smaller) window.
+## Finally, we assembly the tests for each of the smaller problems.
+divFactor <- 5
+
+out <- makeLengthConLOne(nItems,nForms,nMidpoints,divFactor)
+
+makeLengthConLOne <- function(nItems,nForms,nMidpoints,divFactor){
+    if(nMidpoints %% divFactor != 0){
+        warning("The modulus of windows and factors is not zero.")
+        return(NULL)
+    }
+    mat <- matrix(0,nrow = nMidpoints/divFactor, ncol = nItems*(nMidpoints/divFactor))
+    for(i in 1:(nMidpoints/divFactor)){
+        mat[i,(1 + (i - 1)*nItems):(i*nItems)] <- 1
+    }
+    return(mat)
+}
+
+
+makeItemLimitsLOne <- function(nItems,nForms,nMidpoints,divFactor){
+    if(nMidpoints %% divFactor != 0){
+        warning("The modulus of windows and factors is not zero.")
+        return(NULL)
+    }
+    mat <- NULL
+    for(i in 1:(nMidpoints/divFactor)){
+        mat <- cbind(mat,diag(nItems))
+    }
+    return(mat)
+}
+
+out2 <- makeItemLimitsLOne(nItems,nForms,nMidpoints,divFactor)
+
+f.obj <- makeBRSTfOBJ(nItems,nForms,nMidpoints,divFactor,midPoints,a,b,c)
+dim(out2)
+dim(out)
+nMidpoints/divFactor
+f.con <- rbind(out,out2,out2)
+dim(f.con)
+kl <- 6
+ku <- 10
+f.rhs <- c(rep(mLength*nForms*(nMidpoints),nMidpoints/divFactor),rep(ku,nItems),rep(kl,nItems))
+
+f.dir <- c(rep("=",nMidpoints/divFactor),rep("<=",nItems),rep(">=",nItems))
+length(f.dir)
+length(f.rhs)
+dim(f.con)
+length(f.obj)
+
+out <- lp("max",f.obj,f.con,f.dir,f.rhs,all.int = T)
+out
+out$solution
+makeBRSTfOBJ <- function(nItems,nForms,nMidpoints,divFactor,midPoints,a,b,c){
+    x <- NULL
+    nBiggerWindows <- nMidpoints/divFactor
+    counter <- 0
+    for(i in 1:nBiggerWindows){
+        y <- rep(0,nItems)
+        for(j in 1:divFactor){
+            counter <- counter + 1
+            y <- y + FisherInfo(theta = midPoints[counter],a = a, b = b, c = c)
+        }
+        x <- c(x,y)
+    }
+    return(x)
+}
+
+
+makeLengthConLTwo <- function(nItems,nForms){
+    mat <- matrix(0,nrow = nForms, ncol = nItems*nForms)
+    for(i in 1:(nForms)){
+        mat[i,(1 + (i - 1)*nItems):(i*nItems)] <- 1
+    }
+    return(mat)
+}
+
+makeItemLimitsLTwo <- function(nItems,nForms){
+    mat <- NULL
+    for(i in 1:(nForms)){
+        mat <- cbind(mat,diag(nItems))
+    }
+    return(mat)
+}
+
 
 ################################################################################
 ###
@@ -242,7 +343,7 @@ MAP <- function(irvs,a,b,max.it=50,HPM =  0, HPVAR = 1,initTheta = 0){
 }
 
 
-CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method){
+CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method,trace = T,mod = 100){
     n <- length(thetas)
     theta.hat <- rep(0,n)
     edges <- c(-Inf,edges,Inf)
@@ -250,7 +351,11 @@ CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method){
     U <- matrix(NA,n,mLength)
     theta.out <- matrix(NA,n,mLength)
     for(i in 1:n){
-        print(i)
+        if(trace == T){
+            if(i %% mod == 0){
+                cat(i/n*100,"%\n")
+            }
+        }
         for(j in 1:mLength){
 
             if(method == "MaxInfo"){                
@@ -274,6 +379,20 @@ CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method){
                 theta.hat[i] <- theta.temp
             }
             if(method == "PostPool"){
+                if(j %in% 1:5){
+                selectedItem <- sample(nItems,1)
+                p <- Probs3plm(thetas = thetas[i],a[selectedItem],
+                               b[selectedItem],
+                               c[selectedItem])
+                I[i,j] <- selectedItem
+                U[i,j] <- sample(0:1,1,prob = c((1-p),p))
+                irvs <- na.omit(U[i,])
+                items <- na.omit(I[i,])
+                theta.temp <- MAP(irvs,a[items],b[items])
+                theta.out[i,j] <- theta.temp
+                theta.hat[i] <- theta.temp
+                next
+                }
                 whichWindow <- findInterval(theta.hat[i],edges)
                 whichForm <- sample(nForms,1)
                 windowItems <- rrr[[whichWindow]][[whichForm]]
@@ -295,13 +414,14 @@ CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method){
     return(list(theta.out = theta.out,I = I, U = U))
 }
 
-n <- 5000
-val <- -2
+
+
+n <- 50000
+val <- -1
 thetas <- rep(val,n)
 thetas <- rnorm(n)
 res1 <- CatSim(thetas,a,b,c,mLength,edges,nForms,rrr,method = "MaxInfo")
-res2 <- CatSim(thetas,a,b,c,mLength,edges,nForms,rrr,method = "PostPool")
-
+res2 <- CatSim(thetas,a,b,c,mLength,edges,nForms,out,method = "PostPool")
 png("ItemExposure.png")
 barplot(table(as.vector(res1$I))/n,ylim = c(0,1),main = "Item Exposure Frequency")
 dev.off()
@@ -318,16 +438,19 @@ dev.off()
 
 mean(res2$theta.out[,mLength] - thetas)
 length(names(table(res2$I)))
+hist(table(res2$I)/n,breaks = 50)
 max(table(res2$I)/n)
 min(table(res2$I)/n)
-hist(res2$theta.out[,mLength])
-sqrt(mean((res2$theta.out[,mLength] - thetas[])^2))
+var(table(res2$I)/n)
+quantile(table(res2$I)/n)
+hist(res2$theta.out[,mLength] - thetas)
+sqrt(mean((res2$theta.out[,mLength] - thetas)^2))
 
 rnorm(10)
 for(i in 1:5000){
     if(i %% 100 == 0){
         Sys.sleep(.5)
-        plot(res$theta.out[i,],type = "l",ylim = c(-3,3))
+        plot(res2$theta.out[i,],type = "l",ylim = c(-3,3))
         abline(h = thetas[i])
     }
 }
