@@ -118,7 +118,9 @@ x <- NULL
 for(i in 1:nMidpoints){
 x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),1))
 }
+
 length(x)
+
 makeLengthConOne <- function(nItems,nForms,nMidpoints){
     mat <- matrix(0,nrow = nMidpoints, ncol = nItems*nMidpoints)
     for(i in 1:(nMidpoints)){
@@ -207,7 +209,8 @@ unlist(lapply(rrr,function(x) lapply(x,function(z){
 sort(unlist(out[[1]])) == sort(unlist(rrr[[1]]))
 unlist(lapply(out,function(x) lapply(x,function(z){
     sum(FisherInfo(0,a[z],b[z],c[z]))
-    })))
+})))
+
 ################################################################################
 ###
 ### Bigger Shadow Test Method
@@ -221,7 +224,7 @@ unlist(lapply(out,function(x) lapply(x,function(z){
 ## Finally, we assembly the tests for each of the smaller problems.
 divFactor <- 5
 
-out <- makeLengthConLOne(nItems,nForms,nMidpoints,divFactor)
+
 
 makeLengthConLOne <- function(nItems,nForms,nMidpoints,divFactor){
     if(nMidpoints %% divFactor != 0){
@@ -235,7 +238,6 @@ makeLengthConLOne <- function(nItems,nForms,nMidpoints,divFactor){
     return(mat)
 }
 
-
 makeItemLimitsLOne <- function(nItems,nForms,nMidpoints,divFactor){
     if(nMidpoints %% divFactor != 0){
         warning("The modulus of windows and factors is not zero.")
@@ -244,10 +246,12 @@ makeItemLimitsLOne <- function(nItems,nForms,nMidpoints,divFactor){
     mat <- NULL
     for(i in 1:(nMidpoints/divFactor)){
         mat <- cbind(mat,diag(nItems))
+        
     }
     return(mat)
 }
 
+out <- makeLengthConLOne(nItems,nForms,nMidpoints,divFactor)
 out2 <- makeItemLimitsLOne(nItems,nForms,nMidpoints,divFactor)
 
 f.obj <- makeBRSTfOBJ(nItems,nForms,nMidpoints,divFactor,midPoints,a,b,c)
@@ -256,9 +260,11 @@ dim(out)
 nMidpoints/divFactor
 f.con <- rbind(out,out2,out2)
 dim(f.con)
-kl <- 6
-ku <- 10
-f.rhs <- c(rep(mLength*nForms*(nMidpoints),nMidpoints/divFactor),rep(ku,nItems),rep(kl,nItems))
+kl <- 1
+ku <- 2
+mLength*nForms*(nMidpoints/divFactor)
+head(f.con)
+f.rhs <- c(rep(mLength*nForms*(nMidpoints/divFactor),nMidpoints/divFactor),rep(ku,nItems),rep(kl,nItems))
 
 f.dir <- c(rep("=",nMidpoints/divFactor),rep("<=",nItems),rep(">=",nItems))
 length(f.dir)
@@ -268,7 +274,9 @@ length(f.obj)
 
 out <- lp("max",f.obj,f.con,f.dir,f.rhs,all.int = T)
 out
-out$solution
+sum(out$solution)
+apply(matrix(out$solution,nrow = 4,byrow = T),2,sum)
+
 makeBRSTfOBJ <- function(nItems,nForms,nMidpoints,divFactor,midPoints,a,b,c){
     x <- NULL
     nBiggerWindows <- nMidpoints/divFactor
