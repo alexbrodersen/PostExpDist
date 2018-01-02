@@ -13,22 +13,37 @@ sourceCpp("FisherInfo.cpp")
 sourceCpp("Probs3plm.cpp")
 sourceCpp("MLScoring.cpp")
 
-nItems <- 2000
+nItems <- 500
 nForms <- 5
 nMidpoints <- 20
 mLength <- 40
 
-mLength/nItems
-
-1/(nForms*nMidpoints)
-kl <- 1
-ku <- 2
-kl/(nForms*nMidpoints)
-ku/(nForms*nMidpoints)
+40/2000
 
 a <- rlnorm(nItems,0,.2)
 b <- rnorm(nItems)
 c <- rep(0,nItems)
+
+
+
+pool <- read.table("pool.txt")
+
+a <- pool$a
+b <- pool$b
+c <- pool$c
+
+nItems <- nrow(pool)
+mLength <- 27
+mLength/nItems
+nMidpoints <- 20
+nForms <- 5
+
+1/(nForms*nMidpoints)
+
+kl <- 3
+ku <- 5
+kl/(nForms*nMidpoints)
+ku/(nForms*nMidpoints)
 
 edges <- qnorm(seq(0,1,length.out = (nMidpoints + 1))[2:(nMidpoints)])
 
@@ -45,10 +60,10 @@ CalcMidpoints <- function(points,lb,ub){
 }
 
 Midpoints <- CalcMidpoints(edges,lb,ub)
-TRUE
+
 x <- NULL
 for(i in 1:nMidpoints){
-x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),nForms))
+x <- c(x,rep(FisherInfo(theta = Midpoints[i],a = a, b = b, c = c),nForms))
 }
 
 
@@ -116,7 +131,7 @@ trimSolution <- function(res,nItems,nForms,nMidpoints,trace = F){
 x <- NULL
 
 for(i in 1:nMidpoints){
-x <- c(x,rep(FisherInfo(theta = midPoints[i],a = a, b = b, c = c),1))
+x <- c(x,rep(FisherInfo(theta = Midpoints[i],a = a, b = b, c = c),1))
 }
 
 length(x)
@@ -277,7 +292,7 @@ out
 sum(out$solution)
 apply(matrix(out$solution,nrow = 4,byrow = T),2,sum)
 
-makeBRSTfOBJ <- function(nItems,nForms,nMidpoints,divFactor,midPoints,a,b,c){
+makeBRSTfOBJ <- function(nItems,nForms,nMidpoints,divfactor,midPoints,a,b,c){
     x <- NULL
     nBiggerWindows <- nMidpoints/divFactor
     counter <- 0
@@ -424,13 +439,13 @@ CatSim <- function(thetas,a,b,c,mLength,edges,nForms,rrr,method,trace = T,mod = 
 
 
 
-n <- 50000
-val <- -1
+n <- 1000
+val <- 1
 thetas <- rep(val,n)
 thetas <- rnorm(n)
 res1 <- CatSim(thetas,a,b,c,mLength,edges,nForms,rrr,method = "MaxInfo")
 res2 <- CatSim(thetas,a,b,c,mLength,edges,nForms,out,method = "PostPool")
-png("ItemExposure.png")
+png("ItemExposureMFI.png")
 barplot(table(as.vector(res1$I))/n,ylim = c(0,1),main = "Item Exposure Frequency")
 dev.off()
 

@@ -1,0 +1,9 @@
+\beamer@endinputifotherversion {3.36pt}
+\select@language {english}
+\beamer@sectionintoc {1}{Background}{3}{0}{1}
+\beamer@subsectionintoc {1}{1}{Context}{3}{0}{1}
+\beamer@sectionintoc {2}{Item Selection}{5}{0}{2}
+\beamer@sectionintoc {3}{Proposed Solution}{8}{0}{3}
+\beamer@sectionintoc {4}{Study}{10}{0}{4}
+\beamer@sectionintoc {5}{Results}{11}{0}{5}
+\beamer@sectionintoc {6}{Discussion}{16}{0}{6}
